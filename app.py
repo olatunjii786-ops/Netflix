@@ -1,37 +1,41 @@
-from flask import Flask, jsonify, request
-import requests
-from bs4 import BeautifulSoup
 import os
+import requests
+from flask import Flask, jsonify
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
+
+TMDB_API_KEY = os.environ.get("TMDB_API_KEY")
 
 @app.route('/movies')
-def scrape_movies():
-    movie_list = []
+def get_popular():
     try:
-        # Example URL - using a public trending list
-        target_url = "https://vidsrc.to/trending" 
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(target_url, headers=headers)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # This logic grabs the poster and title from the HTML
-        for card in soup.select('.movie-item')[:30]:
-            movie_list.append({
-                "name": card.select_one('.title').text.strip(),
-                "poster": card.select_one('img')['src'],
-                "url": "https://vidsrc.to" + card.select_one('a')['href']
-            })
-    except Exception as e:
-        # Static backup if the site is down
-        movie_list = [{"name": "Avatar", "poster": "https://image.tmdb.org/t/p/w500/kuf6evRbcS3SKEA3oVvznZ10yak.jpg", "url": ""}]
-        
-    return jsonify(movie_list)
+        url = f"https://api.themoviedb.org/3/movie/popular?api_key={TMDB_API_KEY}"
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
 
-@app.route('/register')
-def register():
-    # Simple ID provider
-    return "01"
+        movie_list = []
+
+        for item in data.get('results', []):
+            poster_path = item.get('poster_path')
+            poster_url = (
+                f"https://image.tmdb.org/t/p/w500{poster_path}"
+                if poster_path else ""
+            )
+
+            movie_list.append({
+                "id": item.get('id'),
+                "name": item.get('title'),
+                "overview": item.get('overview'),
+                "poster": poster_url
+            })
+
+        return jsonify(movie_list)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
