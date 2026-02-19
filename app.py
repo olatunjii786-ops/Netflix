@@ -4,7 +4,7 @@ import os
 
 app = Flask(__name__)
 
-TMDB_API_KEY = "YOUR_VALID_TMDB_API_KEY"  # ⚠️ Replace this
+TMDB_API_KEY = "80434abc0b053ca70dfdf53b81f46059"  # ⚠️ Replace this
 
 GENRE_MAP = {
     28: "action",
