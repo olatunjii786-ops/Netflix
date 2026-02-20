@@ -1,40 +1,53 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
+import requests
 import random
 
 app = Flask(__name__)
-CORS(app)  # Allow requests from your Android app
+CORS(app)
 
-# Predefined genres
-genres = ["action", "thriller", "comedy", "horror", "romance", "sci-fi", "drama", "animation"]
+TMDB_API_KEY = "YOUR_TMDB_API_KEY"  # Replace this with your key
 
-# Predefined movie names (example)
-movie_names = [
-    "Avatar", "John Wick", "Inception", "The Matrix", "Avengers", "Joker",
-    "Interstellar", "Frozen", "Titanic", "The Dark Knight", "Toy Story", "Parasite",
-    "Guardians of the Galaxy", "Deadpool", "Shrek", "Iron Man", "Spider-Man", "Doctor Strange"
+# TMDb genres
+tmdb_genres = {
+    "action": 28, "thriller": 53, "comedy": 35, "horror": 27,
+    "romance": 10749, "sci-fi": 878, "drama": 18, "animation": 16
+}
+
+# Sample playable URLs (MP4/HLS)
+sample_videos = [
+    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4"
 ]
 
-# Generate thousands of movies dynamically
-movies = []
+def fetch_movies_by_genre(genre_name, page=1):
+    genre_id = tmdb_genres.get(genre_name.lower())
+    if not genre_id:
+        return []
 
-for i in range(1000):
-    name = random.choice(movie_names) + f" {i+1}"
-    genre = random.choice(genres)
-    poster = f"https://picsum.photos/200/300?random={i+1}"  # random placeholder poster
-    url = f"https://vidsrc.me/embed/movie/{i+1}"  # placeholder watch URL
-    movies.append({
-        "name": name,
-        "poster": poster,
-        "url": url,
-        "genre": genre
-    })
+    url = f"https://api.themoviedb.org/3/discover/movie?api_key={TMDB_API_KEY}&with_genres={genre_id}&page={page}"
+    resp = requests.get(url)
+    data = resp.json()
+    movies = []
 
-@app.route('/movies')
+    for item in data.get("results", []):
+        movies.append({
+            "name": item.get("title"),
+            "poster": f"https://image.tmdb.org/t/p/w500{item.get('poster_path')}" if item.get('poster_path') else "",
+            "url": random.choice(sample_videos),  # Replace with real stream if available
+            "genre": genre_name
+        })
+    return movies
+
+@app.route("/movies")
 def get_movies():
-    return jsonify(movies)
+    all_movies = []
+    for genre in tmdb_genres.keys():
+        all_movies += fetch_movies_by_genre(genre, page=1)
+    return jsonify(all_movies)
 
-@app.route('/')
+@app.route("/")
 def home():
     return "Netflix Clone Backend ✅"
 
