@@ -1,55 +1,37 @@
 from flask import Flask, jsonify
-from flask_cors import CORS
 import requests
-import random
+import os
 
 app = Flask(__name__)
-CORS(app)
 
-TMDB_API_KEY = "YOUR_TMDB_API_KEY"  # Replace this with your key
-
-# TMDb genres
-tmdb_genres = {
-    "action": 28, "thriller": 53, "comedy": 35, "horror": 27,
-    "romance": 10749, "sci-fi": 878, "drama": 18, "animation": 16
-}
-
-# Sample playable URLs (MP4/HLS)
-sample_videos = [
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4"
-]
-
-def fetch_movies_by_genre(genre_name, page=1):
-    genre_id = tmdb_genres.get(genre_name.lower())
-    if not genre_id:
-        return []
-
-    url = f"https://api.themoviedb.org/3/discover/movie?api_key={TMDB_API_KEY}&with_genres={genre_id}&page={page}"
-    resp = requests.get(url)
-    data = resp.json()
-    movies = []
-
-    for item in data.get("results", []):
-        movies.append({
-            "name": item.get("title"),
-            "poster": f"https://image.tmdb.org/t/p/w500{item.get('poster_path')}" if item.get('poster_path') else "",
-            "url": random.choice(sample_videos),  # Replace with real stream if available
-            "genre": genre_name
-        })
-    return movies
+TMDB_API_KEY = "80434abc0b053ca70dfdf53b81f46059"  # Replace with your TMDb API key
 
 @app.route("/movies")
 def get_movies():
-    all_movies = []
-    for genre in tmdb_genres.keys():
-        all_movies += fetch_movies_by_genre(genre, page=1)
-    return jsonify(all_movies)
+    # Get genres from TMDb
+    genres_url = f"https://api.themoviedb.org/3/genre/movie/list?api_key={TMDB_API_KEY}&language=en-US"
+    genres_data = requests.get(genres_url).json()
+    genre_map = {g['id']: g['name'] for g in genres_data.get('genres', [])}
 
-@app.route("/")
-def home():
-    return "Netflix Clone Backend ✅"
+    movie_list = []
+
+    # Fetch multiple pages of popular movies
+    for page in range(1, 6):  # Fetch first 5 pages (~100 movies)
+        url = f"https://api.themoviedb.org/3/movie/popular?api_key={TMDB_API_KEY}&page={page}"
+        data = requests.get(url).json()
+        for m in data.get("results", []):
+            genre_ids = m.get("genre_ids", [])
+            for gid in genre_ids:
+                # Construct a "playable" URL
+                movie_list.append({
+                    "name": m.get("title"),
+                    "poster": f"https://image.tmdb.org/t/p/w500{m.get('poster_path')}",
+                    "url": f"https://vidsrc.me/embed/movie/{m.get('id')}",  # placeholder for in-app play
+                    "genre": genre_map.get(gid, "Other")
+                })
+
+    return jsonify(movie_list)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
