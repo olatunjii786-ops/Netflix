@@ -1,55 +1,32 @@
-from flask import Flask, jsonify
+import os
 import requests
+from flask import Flask, jsonify
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 
-CONSUMET_BASE = "https://apiconsumetorg-production-085d.up.railway.app"
+TMDB_API_KEY = os.getenv("TMDB_API_KEY", "80434abc0b053ca70dfdf53b81f46059")
 
-# -------- MOVIES BY CATEGORY --------
-@app.route("/movies/<category>")
-def get_movies(category):
+@app.route('/movies')
+def get_movies():
     try:
-        url = f"{CONSUMET_BASE}/movies/flixhq/{category}"
+        url = f"https://api.themoviedb.org/3/movie/popular?api_key={TMDB_API_KEY}"
         response = requests.get(url)
         data = response.json()
-
-        results = data.get("results", [])
-
-        formatted = []
-
-        for movie in results:
-            formatted.append({
-                "title": movie.get("title"),
-                "poster": movie.get("image"),   # rename image → poster
-                "url": movie.get("id")          # VERY IMPORTANT
+        
+        cleaned_movies = []
+        for item in data.get('results', []):
+            cleaned_movies.append({
+                "id": str(item.get('id')),
+                "title": item.get('title'),
+                "poster": f"https://image.tmdb.org/t/p/w500{item.get('poster_path')}",
+                "play_url": f"https://vidsrc.to/embed/movie/{item.get('id')}"
             })
-
-        return jsonify(formatted)  # RETURN PURE ARRAY
-
+        return jsonify(cleaned_movies)
     except Exception as e:
-        print(e)
-        return jsonify([])
+        return jsonify({"error": str(e)}), 500
 
-
-# -------- STREAM ENDPOINT --------
-@app.route("/stream/<movie_id>")
-def stream(movie_id):
-    try:
-        url = f"{CONSUMET_BASE}/movies/flixhq/info?id={movie_id}"
-        response = requests.get(url)
-        data = response.json()
-
-        sources = data.get("sources", [])
-
-        return jsonify({
-            "sources": sources
-        })
-
-    except Exception as e:
-        print(e)
-        return jsonify({"sources": []})
-
-
-@app.route("/")
-def home():
-    return "🔥 Netflix Backend Running"
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
