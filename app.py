@@ -5,55 +5,51 @@ app = Flask(__name__)
 
 CONSUMET_BASE = "https://apiconsumetorg-production-085d.up.railway.app"
 
-# Categories mapping
-CATEGORIES = ["trending", "popular", "top-rated", "latest"]
-GENRES = ["action", "romance", "comedy", "horror", "scifi", "thriller"]
-
+# -------- MOVIES BY CATEGORY --------
 @app.route("/movies/<category>")
-def movies(category):
+def get_movies(category):
     try:
-        # Determine endpoint
-        if category in GENRES:
-            url = f"{CONSUMET_BASE}/genres/flixhq/{category}"
-        elif category in CATEGORIES:
-            url = f"{CONSUMET_BASE}/movies/flixhq/{category}"
-        else:
-            return jsonify([])
+        url = f"{CONSUMET_BASE}/movies/flixhq/{category}"
+        response = requests.get(url)
+        data = response.json()
 
-        resp = requests.get(url)
-        data = resp.json()
         results = data.get("results", [])
 
-        movies = []
-        for m in results[:50]:  # send up to 50 items
-            movies.append({
-                "title": m.get("title"),
-                "poster": m.get("image"),
-                "url": m.get("url"),
-                "type": m.get("type"),
-                "releaseDate": m.get("releaseDate", "N/A")
+        formatted = []
+
+        for movie in results:
+            formatted.append({
+                "title": movie.get("title"),
+                "poster": movie.get("image"),   # rename image → poster
+                "url": movie.get("id")          # VERY IMPORTANT
             })
 
-        return jsonify(movies)
+        return jsonify(formatted)  # RETURN PURE ARRAY
 
     except Exception as e:
         print(e)
         return jsonify([])
 
-@app.route("/stream/<title>")
-def stream(title):
+
+# -------- STREAM ENDPOINT --------
+@app.route("/stream/<movie_id>")
+def stream(movie_id):
     try:
-        url = f"{CONSUMET_BASE}/movies/flixhq/{title}"
-        resp = requests.get(url)
-        data = resp.json()
-        # Make the response compatible with DetailsActivity
-        sources = []
-        for s in data.get("sources", []):
-            sources.append({"url": s.get("url")})
-        return jsonify({"sources": sources})
-    except:
+        url = f"{CONSUMET_BASE}/movies/flixhq/info?id={movie_id}"
+        response = requests.get(url)
+        data = response.json()
+
+        sources = data.get("sources", [])
+
+        return jsonify({
+            "sources": sources
+        })
+
+    except Exception as e:
+        print(e)
         return jsonify({"sources": []})
+
 
 @app.route("/")
 def home():
-    return "🔥 Backend running for Netflix clone"
+    return "🔥 Netflix Backend Running"
