@@ -1,10 +1,9 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import requests
 
 app = Flask(__name__)
 TMDB_API_KEY = "80434abc0b053ca70dfdf53b81f46059"
 
-# TMDB Genre IDs
 GENRES = {
     "Trending": "trending",
     "Action": "28",
@@ -25,9 +24,7 @@ def get_movies():
         else:
             url = f"https://api.themoviedb.org/3/discover/movie?api_key={TMDB_API_KEY}&with_genres={g_id}"
         
-        # Get 15 movies per genre to allow for "View More" exploration
         res = requests.get(url).json().get('results', [])[:15] 
-        
         genre_movies = []
         for m in res:
             m_id = str(m.get('id'))
@@ -39,5 +36,27 @@ def get_movies():
                 "s3": f"https://www.2embed.cc/embed/{m_id}"
             })
         structured_data.append({"genre": name, "movies": genre_movies})
-        
     return jsonify(structured_data)
+
+# --- NEW SEARCH ROUTE ---
+@app.route('/search')
+def search_movies():
+    query = request.args.get('q')
+    if not query:
+        return jsonify([])
+
+    search_url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={query}"
+    res = requests.get(search_url).json().get('results', [])
+    
+    search_results = []
+    for m in res:
+        m_id = str(m.get('id'))
+        if m.get('poster_path'): # Only show movies with posters
+            search_results.append({
+                "title": m.get('title'),
+                "poster": f"https://image.tmdb.org/t/p/w500{m.get('poster_path')}",
+                "s1": f"https://vidsrc.to/embed/movie/{m_id}",
+                "s2": f"https://vidsrc.me/embed/movie/{m_id}",
+                "s3": f"https://www.2embed.cc/embed/{m_id}"
+            })
+    return jsonify(search_results)
