@@ -1,62 +1,62 @@
-from flask import Flask, jsonify, request
-import requests
+from flask import Flask, jsonify
 
 app = Flask(__name__)
-TMDB_API_KEY = "80434abc0b053ca70dfdf53b81f46059"
 
-GENRES = {
-    "Trending": "trending",
-    "Action": "28",
-    "Comedy": "35",
-    "Horror": "27",
-    "Sci-Fi": "878",
-    "Animation": "16",
-    "Romance": "10749",
-    "Documentary": "99"
-}
+# This is your database. Add as many movies as you want inside the 'movies' lists.
+movie_data = [
+    {
+        "genre": "Trending",
+        "movies": [
+            {
+                "title": "Example Trending",
+                "poster": "https://image.tmdb.org/t/p/w500/or86B6Xjz39u0ZCNqSG0biF7XOP.jpg",
+                "s1": "https://vidsrc.to/embed/movie/tt0111161",
+                "s2": "https://vidsrc.me/embed/tt0111161",
+                "s3": "https://v2.vidsrc.me/embed/tt0111161"
+            }
+        ]
+    },
+    {
+        "genre": "Action",
+        "movies": [
+            {
+                "title": "Action Movie",
+                "poster": "https://image.tmdb.org/t/p/w500/6oom5QOTv0Y6InA39v9uJvAzvR5.jpg",
+                "s1": "https://vidsrc.to/embed/movie/tt1234567",
+                "s2": "https://vidsrc.me/embed/tt1234567",
+                "s3": "https://v2.vidsrc.me/embed/tt1234567"
+            }
+        ]
+    },
+    {
+        "genre": "Drama",
+        "movies": []
+    },
+    {
+        "genre": "TV Shows",
+        "movies": []
+    },
+    {
+        "genre": "Asian",
+        "movies": []
+    },
+    {
+        "genre": "Chinese",
+        "movies": []
+    }
+]
 
-@app.route('/movies')
+@app.route('/movies', methods=['GET'])
 def get_movies():
-    structured_data = []
-    for name, g_id in GENRES.items():
-        if g_id == "trending":
-            url = f"https://api.themoviedb.org/3/trending/movie/week?api_key={TMDB_API_KEY}"
-        else:
-            url = f"https://api.themoviedb.org/3/discover/movie?api_key={TMDB_API_KEY}&with_genres={g_id}"
-        
-        res = requests.get(url).json().get('results', [])[:15] 
-        genre_movies = []
-        for m in res:
-            m_id = str(m.get('id'))
-            genre_movies.append({
-                "title": m.get('title'),
-                "poster": f"https://image.tmdb.org/t/p/w500{m.get('poster_path')}",
-                "s1": f"https://vidsrc.to/embed/movie/{m_id}",
-                "s2": f"https://vidsrc.me/embed/movie/{m_id}",
-                "s3": f"https://www.2embed.cc/embed/{m_id}"
-            })
-        structured_data.append({"genre": name, "movies": genre_movies})
-    return jsonify(structured_data)
+    # This sends the data to your Android app
+    return jsonify(movie_data)
 
-# --- NEW SEARCH ROUTE ---
-@app.route('/search')
-def search_movies():
-    query = request.args.get('q')
-    if not query:
-        return jsonify([])
+@app.route('/')
+def home():
+    return "Netflix Backend is Running! Go to /movies to see the data."
 
-    search_url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={query}"
-    res = requests.get(search_url).json().get('results', [])
-    
-    search_results = []
-    for m in res:
-        m_id = str(m.get('id'))
-        if m.get('poster_path'): # Only show movies with posters
-            search_results.append({
-                "title": m.get('title'),
-                "poster": f"https://image.tmdb.org/t/p/w500{m.get('poster_path')}",
-                "s1": f"https://vidsrc.to/embed/movie/{m_id}",
-                "s2": f"https://vidsrc.me/embed/movie/{m_id}",
-                "s3": f"https://www.2embed.cc/embed/{m_id}"
-            })
-    return jsonify(search_results)
+if __name__ == '__main__':
+    # Railway will provide the PORT automatically
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
