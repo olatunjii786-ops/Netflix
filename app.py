@@ -3,7 +3,7 @@ from flask import Flask, jsonify
 
 app = Flask(__name__)
 # Replace with your TMDB API Key from themoviedb.org
-TMDB_API_KEY = "YOUR_API_KEY"
+TMDB_API_KEY = "80434abc0b053ca70dfdf53b81f46059"
 BASE_URL = "https://api.themoviedb.org/3"
 
 # Mapping Genres to TMDB IDs
