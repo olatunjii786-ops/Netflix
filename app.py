@@ -1,111 +1,91 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from fastapi import FastAPI, Query
 import requests
-import os
+from fastapi.middleware.cors import CORSMiddleware
 
-app = Flask(__name__)
-CORS(app)
+app = FastAPI()
 
-TMDB_API_KEY = "80434abc0b053ca70dfdf53b81f46059"
-TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
+# Enable CORS so your Android app can connect without issues
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-def fetch_tmdb(endpoint, params={}):
+# --- CONFIGURATION ---
+# Put your TMDB API Key here directly
+TMDB_API_KEY = "YOUR_TMDB_API_KEY_HERE" 
+BASE_IMAGE_URL = "https://image.tmdb.org/t/p/w500"
+
+def fetch_from_tmdb(endpoint, params={}):
     params['api_key'] = TMDB_API_KEY
-    params['language'] = 'en-US'
     url = f"https://api.themoviedb.org/3{endpoint}"
-    response = requests.get(url, params=params)
-    return response.json()
+    try:
+        response = requests.get(url, params=params)
+        return response.json()
+    except Exception as e:
+        return {"error": str(e)}
 
-def format_movie(movie):
-    return {
-        'id': movie['id'],
-        'title': movie['title'],
-        'poster': TMDB_IMAGE_BASE + movie['poster_path'] if movie.get('poster_path') else None,
-        'year': movie['release_date'][:4] if movie.get('release_date') else None,
-        'rating': round(movie['vote_average'], 1) if movie.get('vote_average') else 0,
-        'overview': movie.get('overview', '')
-    }
-
-@app.route('/api/home')
-def home():
-    genre_ids = [28, 35, 18, 27, 10749, 878, 53, 16, 99, 9648]
-    genre_names = {
-        28: 'Action', 35: 'Comedy', 18: 'Drama', 27: 'Horror',
-        10749: 'Romance', 878: 'Sci-Fi', 53: 'Thriller', 16: 'Animation',
-        99: 'Documentary', 9648: 'Mystery'
-    }
-    
-    result = {'status': 'success', 'genres': []}
-    
-    for genre_id in genre_ids:
-        data = fetch_tmdb('/discover/movie', {
-            'with_genres': genre_id,
-            'sort_by': 'popularity.desc',
-            'page': 1
-        })
-        
-        movies = []
-        for movie in data.get('results', [])[:10]:
-            movies.append(format_movie(movie))
-        
-        result['genres'].append({
-            'id': genre_id,
-            'name': genre_names[genre_id],
-            'movies': movies
-        })
-    
-    return jsonify(result)
-
-@app.route('/api/search')
-def search():
-    query = request.args.get('q', '')
-    if not query:
-        return jsonify({'status': 'error', 'message': 'Query required'})
-    
-    data = fetch_tmdb('/search/movie', {'query': query})
-    
-    results = []
-    for movie in data.get('results', []):
-        results.append(format_movie(movie))
-    
-    return jsonify({
-        'status': 'success',
-        'query': query,
-        'results': results
-    })
-
-@app.route('/api/movie')
-def movie():
-    movie_id = request.args.get('id', '')
-    if not movie_id:
-        return jsonify({'status': 'error', 'message': 'Movie ID required'})
-    
-    data = fetch_tmdb(f'/movie/{movie_id}', {'append_to_response': 'videos'})
-    
-    # Get watch sources (VidSrc URLs)
-    watch_sources = [
-        {'name': 'VidSrc', 'url': f'https://vidsrc.to/embed/movie/{movie_id}'},
-        {'name': 'VidSrc 2', 'url': f'https://vidsrc.in/embed/movie/{movie_id}'},
-        {'name': 'Smashy', 'url': f'https://player.smashy.stream/movie/{movie_id}'}
+@app.get("/api/home")
+def get_home():
+    # Blueprint: 10 movies per genre
+    # Genres: 28 (Action), 27 (Horror), 10749 (Romance), 878 (Sci-Fi)
+    categories = [
+        {"id": "28", "name": "Action Hits"},
+        {"id": "27", "name": "Horror Night"},
+        {"id": "878", "name": "Sci-Fi Universe"}
     ]
     
-    return jsonify({
-        'status': 'success',
-        'data': {
-            'id': data['id'],
-            'title': data['title'],
-            'overview': data.get('overview', ''),
-            'poster': TMDB_IMAGE_BASE + data['poster_path'] if data.get('poster_path') else None,
-            'year': data['release_date'][:4] if data.get('release_date') else None,
-            'rating': round(data['vote_average'], 1) if data.get('vote_average') else 0,
-            'watch_sources': watch_sources
-        }
-    })
+    home_structure = {"genres": []}
+    
+    for cat in categories:
+        data = fetch_from_tmdb("/discover/movie", {
+            "with_genres": cat["id"],
+            "sort_by": "popularity.desc"
+        })
+        
+        movies_list = []
+        # Get exactly 10 movies for each row
+        results = data.get('results', [])[:10]
+        
+        for movie in results:
+            movies_list.append({
+                "id": str(movie.get('id')),
+                "title": movie.get('title'),
+                "poster": f"{BASE_IMAGE_URL}{movie.get('poster_path')}",
+                "overview": movie.get('overview'),
+                "year": movie.get('release_date', '0000')[:4]
+            })
+            
+        home_structure["genres"].append({
+            "name": cat["name"],
+            "movies": movies_list
+        })
+        
+    return home_structure
 
-@app.route('/')
-def index():
-    return jsonify({'message': 'Netflix Movie API is running'})
+@app.get("/api/movie")
+def get_movie_details(id: str):
+    # This provides the high-quality stream links
+    return {
+        "watch_sources": [
+            {"name": "Server 1", "url": f"https://vidsrc.to/embed/movie/{id}"},
+            {"name": "Server 2", "url": f"https://vidsrc.me/embed/movie/{id}"}
+        ]
+    }
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+@app.get("/api/search")
+def search_movie(q: str):
+    data = fetch_from_tmdb("/search/movie", {"query": q})
+    results = []
+    for item in data.get('results', [])[:15]:
+        results.append({
+            "id": str(item.get('id')),
+            "title": item.get('title'),
+            "poster": f"{BASE_IMAGE_URL}{item.get('poster_path')}"
+        })
+    return {"results": results}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
