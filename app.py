@@ -14,7 +14,7 @@ app.add_middleware(
 
 # --- CONFIGURATION ---
 # Put your TMDB API Key here directly
-TMDB_API_KEY = "YOUR_TMDB_API_KEY_HERE" 
+TMDB_API_KEY = "80434abc0b053ca70dfdf53b81f46059" 
 BASE_IMAGE_URL = "https://image.tmdb.org/t/p/w500"
 
 def fetch_from_tmdb(endpoint, params={}):
