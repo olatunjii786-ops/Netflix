@@ -1,49 +1,111 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 import requests
-from flask import Flask, jsonify, request
 import os
 
 app = Flask(__name__)
+CORS(app)
+
 TMDB_API_KEY = "80434abc0b053ca70dfdf53b81f46059"
-BASE_URL = "https://api.themoviedb.org/3"
+TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
 
-def process_results(results):
-    output = []
-    for item in results:
-        item_id = str(item.get('id'))
-        title = item.get('title') if item.get('title') else item.get('name')
-        media_type = "tv" if "name" in item else "movie"
-        if item.get('poster_path'):
-            output.append({
-                "id": item_id,
-                "title": title,
-                "type": media_type,
-                "poster": f"https://image.tmdb.org/t/p/w500{item.get('poster_path')}",
-                "s1": f"https://vidsrc.to/embed/{media_type}/{item_id}",
-                "s2": f"https://vidsrc.me/embed/{media_type}/{item_id}",
-                "s3": f"https://v2.vidsrc.me/embed/{media_type}/{item_id}"
-            })
-    return output
+def fetch_tmdb(endpoint, params={}):
+    params['api_key'] = TMDB_API_KEY
+    params['language'] = 'en-US'
+    url = f"https://api.themoviedb.org/3{endpoint}"
+    response = requests.get(url, params=params)
+    return response.json()
 
-@app.route('/movies')
-def get_content():
-    data = [
-        {"genre": "Trending", "movies": process_results(requests.get(f"{BASE_URL}/trending/all/week?api_key={TMDB_API_KEY}").json().get('results', []))},
-        {"genre": "Action", "movies": process_results(requests.get(f"{BASE_URL}/discover/movie?api_key={TMDB_API_KEY}&with_genres=28").json().get('results', []))},
-        {"genre": "TV Shows", "movies": process_results(requests.get(f"{BASE_URL}/discover/tv?api_key={TMDB_API_KEY}").json().get('results', []))},
-        {"genre": "Asian", "movies": process_results(requests.get(f"{BASE_URL}/discover/movie?api_key={TMDB_API_KEY}&with_original_language=ko|ja").json().get('results', []))},
-        {"genre": "Chinese", "movies": process_results(requests.get(f"{BASE_URL}/discover/movie?api_key={TMDB_API_KEY}&with_original_language=zh|cn").json().get('results', []))}
-    ]
-    return jsonify(data)
+def format_movie(movie):
+    return {
+        'id': movie['id'],
+        'title': movie['title'],
+        'poster': TMDB_IMAGE_BASE + movie['poster_path'] if movie.get('poster_path') else None,
+        'year': movie['release_date'][:4] if movie.get('release_date') else None,
+        'rating': round(movie['vote_average'], 1) if movie.get('vote_average') else 0,
+        'overview': movie.get('overview', '')
+    }
 
-@app.route('/search')
+@app.route('/api/home')
+def home():
+    genre_ids = [28, 35, 18, 27, 10749, 878, 53, 16, 99, 9648]
+    genre_names = {
+        28: 'Action', 35: 'Comedy', 18: 'Drama', 27: 'Horror',
+        10749: 'Romance', 878: 'Sci-Fi', 53: 'Thriller', 16: 'Animation',
+        99: 'Documentary', 9648: 'Mystery'
+    }
+    
+    result = {'status': 'success', 'genres': []}
+    
+    for genre_id in genre_ids:
+        data = fetch_tmdb('/discover/movie', {
+            'with_genres': genre_id,
+            'sort_by': 'popularity.desc',
+            'page': 1
+        })
+        
+        movies = []
+        for movie in data.get('results', [])[:10]:
+            movies.append(format_movie(movie))
+        
+        result['genres'].append({
+            'id': genre_id,
+            'name': genre_names[genre_id],
+            'movies': movies
+        })
+    
+    return jsonify(result)
+
+@app.route('/api/search')
 def search():
-    query = request.args.get('q')
-    if not query: return jsonify({"movies": [], "tv": []})
-    res = requests.get(f"{BASE_URL}/search/multi?api_key={TMDB_API_KEY}&query={query}").json().get('results', [])
+    query = request.args.get('q', '')
+    if not query:
+        return jsonify({'status': 'error', 'message': 'Query required'})
+    
+    data = fetch_tmdb('/search/movie', {'query': query})
+    
+    results = []
+    for movie in data.get('results', []):
+        results.append(format_movie(movie))
+    
     return jsonify({
-        "movies": process_results([r for r in res if r.get('media_type') == 'movie']),
-        "tv": process_results([r for r in res if r.get('media_type') == 'tv'])
+        'status': 'success',
+        'query': query,
+        'results': results
     })
 
+@app.route('/api/movie')
+def movie():
+    movie_id = request.args.get('id', '')
+    if not movie_id:
+        return jsonify({'status': 'error', 'message': 'Movie ID required'})
+    
+    data = fetch_tmdb(f'/movie/{movie_id}', {'append_to_response': 'videos'})
+    
+    # Get watch sources (VidSrc URLs)
+    watch_sources = [
+        {'name': 'VidSrc', 'url': f'https://vidsrc.to/embed/movie/{movie_id}'},
+        {'name': 'VidSrc 2', 'url': f'https://vidsrc.in/embed/movie/{movie_id}'},
+        {'name': 'Smashy', 'url': f'https://player.smashy.stream/movie/{movie_id}'}
+    ]
+    
+    return jsonify({
+        'status': 'success',
+        'data': {
+            'id': data['id'],
+            'title': data['title'],
+            'overview': data.get('overview', ''),
+            'poster': TMDB_IMAGE_BASE + data['poster_path'] if data.get('poster_path') else None,
+            'year': data['release_date'][:4] if data.get('release_date') else None,
+            'rating': round(data['vote_average'], 1) if data.get('vote_average') else 0,
+            'watch_sources': watch_sources
+        }
+    })
+
+@app.route('/')
+def index():
+    return jsonify({'message': 'Netflix Movie API is running'})
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
