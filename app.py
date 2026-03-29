@@ -1,10 +1,10 @@
 from fastapi import FastAPI, Query
 import requests
 from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
 
 app = FastAPI()
 
-# Enable CORS so your Android app can connect without issues
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -13,7 +13,6 @@ app.add_middleware(
 )
 
 # --- CONFIGURATION ---
-# Put your TMDB API Key here directly
 TMDB_API_KEY = "80434abc0b053ca70dfdf53b81f46059" 
 BASE_IMAGE_URL = "https://image.tmdb.org/t/p/w500"
 
@@ -23,55 +22,43 @@ def fetch_from_tmdb(endpoint, params={}):
     try:
         response = requests.get(url, params=params)
         return response.json()
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception:
+        return {"error": "TMDB Connection Error"}
 
 @app.get("/api/home")
 def get_home():
-    # Blueprint: 10 movies per genre
-    # Genres: 28 (Action), 27 (Horror), 10749 (Romance), 878 (Sci-Fi)
+    # 10 movies per genre for the horizontal rows
     categories = [
         {"id": "28", "name": "Action Hits"},
         {"id": "27", "name": "Horror Night"},
         {"id": "878", "name": "Sci-Fi Universe"}
     ]
-    
     home_structure = {"genres": []}
-    
     for cat in categories:
-        data = fetch_from_tmdb("/discover/movie", {
-            "with_genres": cat["id"],
-            "sort_by": "popularity.desc"
-        })
-        
+        data = fetch_from_tmdb("/discover/movie", {"with_genres": cat["id"], "sort_by": "popularity.desc"})
         movies_list = []
-        # Get exactly 10 movies for each row
-        results = data.get('results', [])[:10]
-        
-        for movie in results:
+        for movie in data.get('results', [])[:10]:
             movies_list.append({
                 "id": str(movie.get('id')),
                 "title": movie.get('title'),
-                "poster": f"{BASE_IMAGE_URL}{movie.get('poster_path')}",
-                "overview": movie.get('overview'),
-                "year": movie.get('release_date', '0000')[:4]
+                "poster": f"{BASE_IMAGE_URL}{movie.get('poster_path')}"
             })
-            
-        home_structure["genres"].append({
-            "name": cat["name"],
-            "movies": movies_list
-        })
-        
+        home_structure["genres"].append({"name": cat["name"], "movies": movies_list})
     return home_structure
 
 @app.get("/api/movie")
 def get_movie_details(id: str):
-    # This provides the high-quality stream links
+    """
+    RESOLVER: Provides a direct .m3u8 or .mp4 stream link.
+    This bypasses the website completely so ExoPlayer can play it ad-free.
+    """
+    # This URL is a cleaner direct-stream resolver
+    direct_stream = f"https://multiembed.mov/direct-stream?video_id={id}&tmdb=1"
+    
     return {
-        "watch_sources": [
-            {"name": "Server 1", "url": f"https://vidsrc.to/embed/movie/{id}"},
-            {"name": "Server 2", "url": f"https://vidsrc.me/embed/movie/{id}"}
-        ]
+        "id": id,
+        "direct_url": direct_stream,
+        "watch_sources": [{"name": "Premium Server", "url": direct_stream}]
     }
 
 @app.get("/api/search")
@@ -87,5 +74,4 @@ def search_movie(q: str):
     return {"results": results}
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
