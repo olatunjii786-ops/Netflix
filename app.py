@@ -12,7 +12,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- CONFIGURATION ---
 TMDB_API_KEY = "80434abc0b053ca70dfdf53b81f46059" 
 BASE_IMAGE_URL = "https://image.tmdb.org/t/p/w500"
 
@@ -23,11 +22,10 @@ def fetch_from_tmdb(endpoint, params={}):
         response = requests.get(url, params=params)
         return response.json()
     except Exception:
-        return {"error": "TMDB Connection Error"}
+        return {"error": "TMDB Down"}
 
 @app.get("/api/home")
 def get_home():
-    # 10 movies per genre for the horizontal rows
     categories = [
         {"id": "28", "name": "Action Hits"},
         {"id": "27", "name": "Horror Night"},
@@ -48,17 +46,12 @@ def get_home():
 
 @app.get("/api/movie")
 def get_movie_details(id: str):
-    """
-    RESOLVER: Provides a direct .m3u8 or .mp4 stream link.
-    This bypasses the website completely so ExoPlayer can play it ad-free.
-    """
-    # This URL is a cleaner direct-stream resolver
-    direct_stream = f"https://multiembed.mov/direct-stream?video_id={id}&tmdb=1"
-    
+    # SMASHYSTREAM: Best alternative for ad-free native playback
+    stream_url = f"https://player.smashy.stream/movie/{id}"
     return {
         "id": id,
-        "direct_url": direct_stream,
-        "watch_sources": [{"name": "Premium Server", "url": direct_stream}]
+        "direct_url": stream_url,
+        "watch_sources": [{"name": "Premium High-Speed", "url": stream_url}]
     }
 
 @app.get("/api/search")
