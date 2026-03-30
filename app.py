@@ -6,7 +6,7 @@ app = FastAPI()
 
 # --- TMDB SETUP ---
 tmdb = tmdbv3api.TMDb()
-tmdb.api_key = 'YOUR_TMDB_API_KEY'  # <-- USE YOUR REAL KEY HERE
+tmdb.api_key = '80434abc0b053ca70dfdf53b81f46059'  # <-- USE YOUR REAL KEY HERE
 movie_api = tmdbv3api.Movie()
 tv_api = tmdbv3api.TV()
 search_api = tmdbv3api.Search()
