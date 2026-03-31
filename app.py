@@ -6,13 +6,14 @@ app = FastAPI()
 TMDB_KEY = "80434abc0b053ca70dfdf53b81f46059"
 BASE_URL = "https://api.themoviedb.org/3"
 
+# Updated Genre Map for all categories
 GENRE_MAP = {
     "Actions": {"id": 28, "type": "movie"},
     "Comedy": {"id": 35, "type": "movie"},
     "Anime": {"id": 16, "type": "movie", "keyword": "210024"},
     "K-Dramas": {"id": 10759, "type": "tv", "lang": "ko"},
-    "Nollywood": {"id": 18, "type": "movie", "region": "NG"}, # Drama + Nigeria
-    "Bollywood": {"id": 18, "type": "movie", "region": "IN"}  # Drama + India
+    "Nollywood": {"id": 18, "type": "movie", "region": "NG"},
+    "Bollywood": {"id": 18, "type": "movie", "region": "IN"}
 }
 
 def get_tmdb_data(g_name, page=None):
@@ -41,6 +42,10 @@ def get_tmdb_data(g_name, page=None):
 @app.get("/api/home")
 def home():
     return {"genres": [{"name": k, "movies": get_tmdb_data(k)[:10]} for k in GENRE_MAP.keys()]}
+
+@app.get("/api/view-more")
+def view_more(genre: str, page: int = 1):
+    return {"movies": get_tmdb_data(genre, page)}
 
 @app.get("/api/search")
 def search(q: str):
